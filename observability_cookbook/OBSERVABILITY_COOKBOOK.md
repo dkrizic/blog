@@ -40,7 +40,7 @@ Structured logs can be easily queried and analyzed using log management tools li
 
 ## Metrics
 
-Metrhics provide quantitative data about the performance and health of an application. Common metrics include request latency, error rates, and resource utilization.
+Metrics provide quantitative data about the performance and health of an application. Common metrics include request latency, error rates, and resource utilization.
 Traditionally, Prometheus has been the go-to solution for metrics collection and monitoring. However, OpenTelemetry is emerging as a more versatile alternative that supports not only metrics but also tracing and logging.
 
 ### Prometheus Metrics
@@ -101,9 +101,78 @@ graph TD
     G --> |Visualize metrics| P
 ```
 
-#### OpenTelemetry Metrics
+### OpenTelemetry Metrics
 
 OpenTelemetry provides a unified way to collect metrics, traces, and logs. Here is an example of how to set up OpenTelemetry metrics in a Go application:
 
 ```go
 package main
+
+import (
+    "context"
+    "log"
+    "net/http"
+
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/exporters/metric/prometheus"
+    "go.opentelemetry.io/otel/metric/global"
+    "go.opentelemetry.io/otel/sdk/metric"
+)
+
+func main() {
+    // Create Prometheus exporter
+    exporter, err := prometheus.New()
+    if err != nil {
+        log.Fatalf("failed to initialize prometheus exporter: %v", err)
+    }
+
+    // Create MeterProvider with the exporter
+    meterProvider := metric.NewMeterProvider(
+        metric.WithReader(exporter),
+    )
+    global.SetMeterProvider(meterProvider)
+
+    // Create a meter
+    meter := global.Meter("example-meter")
+
+    // Create a counter metric
+    requestCounter, err := meter.Int64Counter("http_requests_total")
+    if err != nil {
+        log.Fatalf("failed to create counter: %v", err)
+    }
+
+    // HTTP handler
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        requestCounter.Add(context.Background(), 1)
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte("Hello, World!"))
+    })
+
+    // Expose metrics endpoint
+    http.Handle("/metrics", exporter)
+
+    log.Println("Starting server on :8080")
+    http.ListenAndServe(":8080", nil)
+}
+```
+
+## Tracing
+
+Tracing provides insights into the flow of requests through a distributed system. It helps identify bottlenecks and latency issues by tracking requests as they propagate through various services.
+
+```mermaid
+gantt
+    title Tracing Flow
+    dateFormat  HH:mm:ss
+    section Frontend
+    User_click            :a1, 00:00:00, 00:00:01
+    Call_Service B        :a2, after a1, 00:00:03
+    section Shopping Cart
+    Receive Request       :b1, after a2, 00:00:02
+    Process Data          :b2, after b1, 00:00:04
+    section Currency Conversion
+    Convert               :a3, after a2, 00:00:01
+```
+
+Here is an example of how to set up OpenTelemetry tracing in a Go application:
+
